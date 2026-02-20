@@ -1501,7 +1501,7 @@ def main():
 
     parser = argparse.ArgumentParser(description="cc-insights: Claude Code 사용 패턴 분석")
     parser.add_argument("command", nargs="?", default="analyze",
-                        choices=["analyze", "summary", "tips", "trends", "skills", "profile", "projects", "stats"],
+                        choices=["analyze", "summary", "tips", "trends", "skills", "profile", "projects", "stats", "transcript"],
                         help="실행할 명령")
     parser.add_argument("--days", type=int, default=7, help="분석 기간 (일)")
     parser.add_argument("--format", choices=["markdown", "json", "summary"], default="summary")
@@ -1509,6 +1509,10 @@ def main():
     parser.add_argument("--setup", action="store_true", help="초기 설정 (baseline 생성)")
     parser.add_argument("--weeks", type=int, default=4, help="트렌드 분석 주 수")
     parser.add_argument("--project", type=str, help="특정 프로젝트 상세 분석")
+    parser.add_argument("--transcript-sub",
+                        choices=["summary", "tools", "files", "errors", "efficiency", "workflows"],
+                        default="summary",
+                        help="트랜스크립트 서브커맨드")
 
     args = parser.parse_args()
 
@@ -1564,6 +1568,11 @@ def main():
             print(analyzer.generate_project_detail_output(args.project))
         else:
             print(analyzer.generate_projects_output())
+
+    elif args.command == "transcript":
+        # 트랜스크립트 분석
+        from transcript_parser import run_transcript_analysis
+        run_transcript_analysis(days=args.days, subcmd=args.transcript_sub)
 
     elif args.command == "stats":
         # 전체 사용 통계 (전체 히스토리 로드)

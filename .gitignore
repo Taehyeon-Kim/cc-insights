@@ -1,5 +1,6 @@
 # Personal data (generated per user via /cc-insights:setup)
 data/baseline.json
+data/transcript_index.json
 
 # Generated reports (may contain raw prompt text)
 reports/

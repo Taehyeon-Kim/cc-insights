@@ -4,11 +4,12 @@ Claude Code 사용 패턴을 분석하여 **개인화된 인사이트와 구체�
 
 ## 특징
 
+- **프롬프트 분석** - `history.jsonl` 기반 품질 점수, 모호한 프롬프트 감지
+- **트랜스크립트 분석** - `transcripts/` 기반 도구 사용, 파일 활동, 에러/워크플로우 패턴
 - **개인화된 프로필** - 나의 개발 스타일, 강점/약점 분석
-- **한국어 특화** - 한국어 프롬프트 패턴 감지, 한국어 피드백
 - **baseline 비교** - 전체 히스토리 대비 최근 변화 추적
 - **skill 자동 생성** - 반복 패턴 감지 시 skill 코드 제안
-- **트렌드 분석** - 주간/월간 성장 추적
+- **한국어 특화** - 한국어 프롬프트 패턴 감지, 한국어 피드백
 - **보안 설계** - 민감 정보 마스킹, 경로 제한, 외부 의존성 제로
 
 ## 구조
@@ -16,28 +17,26 @@ Claude Code 사용 패턴을 분석하여 **개인화된 인사이트와 구체�
 ```mermaid
 graph LR
     A["~/.claude/history.jsonl"] -->|read| B["analyzer.py"]
+    T["~/.claude/transcripts/"] -->|read| P["transcript_parser.py"]
     B --> C["patterns.py"]
     B --> D["baseline.json"]
-    B --> E["reports/"]
+    P --> X["transcript_index.json"]
     C -->|감지| F["모호한 프롬프트"]
     C -->|감지| G["반복 패턴"]
-    C -->|계산| H["품질 점수"]
+    P -->|분석| Y["도구/파일/에러/워크플로우"]
     G --> I["skill_generator.py"]
-    I --> J["generated_skills/"]
 ```
 
 ## 설치
 
-### GitHub에서 설치
-
 ```bash
-# 1. 클론
-git clone https://github.com/Taehyeon-Kim/cc-insights.git ~/.cc-insights
+# 1. 마켓플레이스 등록
+claude plugin marketplace add Taehyeon-Kim/cc-insights
 
-# 2. 커맨드 심링크 등록
-ln -s ~/.cc-insights/commands/cc-insights:*.md ~/.claude/commands/
+# 2. 플러그인 설치
+claude plugin install cc-insights@cc-insights
 
-# 3. Claude Code에서 초기 설정
+# 3. 초기 설정
 /cc-insights:setup
 ```
 
@@ -45,7 +44,7 @@ ln -s ~/.cc-insights/commands/cc-insights:*.md ~/.claude/commands/
 
 ### 1. 초기 설정 (온보딩)
 
-```bash
+```
 /cc-insights:setup
 ```
 
@@ -77,6 +76,7 @@ cc-insights 온보딩 분석 완료
 /cc-insights:trends           # 주간 트렌드
 /cc-insights:skills           # skill 추천 목록
 /cc-insights:analyze          # 상세 분석
+/cc-insights:transcript       # 트랜스크립트 분석
 /cc-insights:projects         # 프로젝트별 분석
 /cc-insights:stats            # 전체 사용 통계
 ```
@@ -120,6 +120,52 @@ cc-insights 빠른 요약 (최근 7일)
 
 ---
 
+### `/cc-insights:transcript` - 트랜스크립트 분석
+
+`~/.claude/transcripts/`의 전체 대화 기록을 분석하여 도구 사용 패턴, 파일 활동, 에러/워크플로우 패턴을 제공합니다.
+
+```bash
+/cc-insights:transcript                              # 종합 요약 (7일)
+/cc-insights:transcript --days 30                    # 30일 분석
+/cc-insights:transcript --transcript-sub tools       # 도구 분포 상세
+/cc-insights:transcript --transcript-sub files       # 파일 활동
+/cc-insights:transcript --transcript-sub errors      # 에러 패턴
+/cc-insights:transcript --transcript-sub efficiency  # 세션 효율성
+/cc-insights:transcript --transcript-sub workflows   # 워크플로우 패턴
+```
+
+**출력 예시:**
+
+```
+cc-insights 트랜스크립트 분석 (최근 30일)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  분석 대상: 824개 세션 / 21,756개 도구 호출
+
+  도구 사용 분포
+   1. read               [████████████████████] 5,897회 (27.1%)
+   2. bash               [███████████████████░] 5,793회 (26.6%)
+   3. edit               [██████░░░░░░░░░░░░░░] 2,059회 (9.5%)
+
+  자주 수정된 파일 (Top 5)
+  1. src/api/v1/__init__.py           12회 (edit)
+  2. src/services/trading.py           12회 (edit)
+
+  에러 패턴
+  총 에러: 618개 (에러율: 2.8%)
+  - bash (exit=1): 425건
+
+  워크플로우 패턴
+  1. bash → bash                     (256회) 연속 명령 실행
+  2. read → read                     (168회) 다중 파일 읽기
+
+  세션 효율성
+  평균 세션: 40.3분 | 도구 밀도: 7.8회/분 | 에러율: 3.0%
+```
+
+**캐시**: 최초 빌드 후 증분 업데이트로 수초 내 완료.
+
+---
+
 ### `/cc-insights:tips` - 개인화된 팁
 
 사용 패턴을 분석하여 맞춤형 개선 팁을 제공합니다.
@@ -129,11 +175,6 @@ cc-insights 빠른 요약 (최근 7일)
 - 세션 스타일 (긴 세션 → /compact 권장)
 - 프롬프트 스타일 (짧은 프롬프트 → 구체화 권장)
 - 비효율 패턴 (/clear 과다 → claude --continue 권장)
-
-**우선순위:**
-- `HIGH` - 즉시 적용 권장
-- `MEDIUM` - 점진적 개선
-- `LOW` - 선택적 적용
 
 ---
 
@@ -157,20 +198,6 @@ cc-insights 빠른 요약 (최근 7일)
 /cc-insights:skills generate commit      # skill 코드 생성
 ```
 
-**추천 기준:**
-- 3회 이상 반복된 패턴
-- 신뢰도 = 반복 횟수에 비례 (최대 95%)
-
-**감지 가능한 패턴:**
-
-| 패턴 | Skill | 설명 |
-|------|-------|------|
-| 로그 확인 | `/log-check` | 로그 확인 및 에러 분석 |
-| 핸드오프 작성 | `/handoff` | 핸드오프 문서 자동 작성 |
-| 커밋 | `/commit` | 변경사항 커밋 |
-| 배포 진행 | `/deploy` | 배포 및 상태 확인 |
-| 테스트 실행 | `/run-tests` | 테스트 실행 및 결과 분석 |
-
 ---
 
 ### `/cc-insights:analyze` - 상세 분석
@@ -189,72 +216,14 @@ cc-insights 빠른 요약 (최근 7일)
 3. 비효율 패턴 감지
 4. 시간/프로젝트 패턴
 
-## 분석 기능 상세
+## 데이터 소스
 
-### 분석 흐름
-
-```mermaid
-flowchart TD
-    A["history.jsonl"] --> B["load_history()"]
-    B --> C{"분석 유형"}
-    C -->|품질| D["calculate_prompt_quality_score()"]
-    C -->|패턴| E["detect_vague_patterns()"]
-    C -->|반복| F["detect_automation_candidates()"]
-    C -->|비효율| G["detect_inefficiency_patterns()"]
-    D --> H["점수 0-10"]
-    E --> I["개선 제안"]
-    F --> J["Skill 추천"]
-    G --> K["워크플로우 팁"]
-    H & I & J & K --> L["리포트 생성"]
-```
-
-### 개발 프로필
-
-| 카테고리 | 유형 |
-|----------|------|
-| 작업 스타일 | 얼리버드 / 나이트아울 / 심야형 / 균형형 |
-| 세션 스타일 | 딥다이브 / 스프린터 / 밸런서 |
-| 프로젝트 스타일 | 집중형 / 포커스형 / 멀티태스커 |
-| 프롬프트 스타일 | 상세파 / 간결파 / 적정파 |
-
-### 품질 점수 계산
-
-```
-기본: 10점
-- 길이 < 10자: -3점
-- 길이 < 20자: -1점
-- 지시대명사(이거, 저거) 사용: -2점
-- 모호한 동사만 사용: -3점
-+ 파일 경로 포함: +1점
-+ 구체적 명령어(npm, git, pm2) 포함: +1점
-+ 에러 메시지 포함: +0.5점
-```
-
-### 모호한 프롬프트 감지
-
-| 패턴 | 문제 | 개선 예시 |
-|------|------|----------|
-| "이거 확인" | 지시대명사 | 무엇을 가리키는지 명시 |
-| "확인해줘" | 대상 미지정 | "pm2 logs에서 ERROR 확인" |
-| "커밋" | 단일 키워드 | 옵션이나 범위 명시 |
-| "로그" | 대상 불명확 | "pm2 logs --lines 100" |
+| 소스 | 파일 | 분석 내용 |
+|------|------|-----------|
+| 프롬프트 히스토리 | `~/.claude/history.jsonl` | 품질 점수, 모호한 프롬프트, 반복 패턴, 시간/프로젝트 패턴 |
+| 트랜스크립트 | `~/.claude/transcripts/*.jsonl` | 도구 사용 분포, 파일 활동, 에러 패턴, 워크플로우, 세션 효율성 |
 
 ## 보안
-
-```mermaid
-flowchart LR
-    subgraph "읽기 (Read-only)"
-        A["~/.claude/history.jsonl"]
-    end
-    subgraph "쓰기 (제한됨)"
-        B["data/baseline.json\n(해시, 0600)"]
-        C["reports/\n(경로 검증, 0600)"]
-        D["generated_skills/\n(경로 검증)"]
-    end
-    A --> B
-    A --> C
-    A --> D
-```
 
 - **민감 정보 마스킹**: API키, JWT, URL 크레덴셜 자동 `[REDACTED]` 처리
 - **프롬프트 비저장**: baseline에 원문 대신 `sha256[:12]` 해시 저장
@@ -278,35 +247,25 @@ cc-insights/
 │   ├── cc-insights:trends.md       # 트렌드 분석
 │   ├── cc-insights:skills.md       # Skill 관리
 │   ├── cc-insights:projects.md     # 프로젝트별 분석
-│   └── cc-insights:stats.md        # 전체 통계
+│   ├── cc-insights:stats.md        # 전체 통계
+│   └── cc-insights:transcript.md   # 트랜스크립트 분석
 ├── scripts/
 │   ├── analyzer.py                 # 메인 분석 엔진
+│   ├── transcript_parser.py        # 트랜스크립트 파서
 │   ├── patterns.py                 # 패턴 감지 모듈
 │   └── skill_generator.py          # Skill 코드 생성
 ├── data/
-│   └── baseline.json               # 전체 히스토리 baseline (gitignored)
+│   ├── baseline.json               # 히스토리 baseline (gitignored)
+│   └── transcript_index.json       # 트랜스크립트 인덱스 캐시 (gitignored)
 ├── reports/                        # 저장된 리포트 (gitignored)
 └── generated_skills/               # 생성된 Skill 파일 (gitignored)
-```
-
-## 추천 사용 패턴
-
-```mermaid
-graph TD
-    A["매일"] -->|"/cc-insights:summary"| B["현황 확인"]
-    C["매주"] -->|"/cc-insights:trends"| D["성장 추적"]
-    C -->|"/cc-insights:tips"| E["개선 팁"]
-    F["필요 시"] -->|"/cc-insights:skills"| G["자동화 후보"]
-    F -->|"/cc-insights:analyze report"| H["상세 리포트"]
-    I["월간"] -->|"/cc-insights:setup"| J["baseline 갱신"]
-    I -->|"/cc-insights:stats"| K["전체 통계"]
 ```
 
 ## 기술 스택
 
 - **언어**: Python 3 (표준 라이브러리만 사용)
-- **분석**: 정규식 기반 패턴 매칭
-- **저장소**: JSON (baseline, 리포트)
+- **분석**: 정규식 기반 패턴 매칭, n-gram 워크플로우 감지
+- **캐시**: 증분 업데이트 인덱스 (mtime 기반)
 - **출력**: CLI, Markdown
 
 ## 라이선스

@@ -1,9 +1,11 @@
 # Personal data (generated per user via /cc-insights:setup)
 data/baseline.json
 
-# Generated reports
-reports/daily/
-reports/weekly/
+# Generated reports (may contain raw prompt text)
+reports/
+
+# Generated skills
+generated_skills/
 
 # OS
 .DS_Store

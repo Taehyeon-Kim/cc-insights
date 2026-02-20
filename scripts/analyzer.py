@@ -34,6 +34,54 @@ PLUGIN_DATA_PATH = Path(__file__).parent.parent / "data"
 BASELINE_PATH = PLUGIN_DATA_PATH / "baseline.json"
 REPORTS_PATH = Path(__file__).parent.parent / "reports"
 
+# 민감 정보 패턴 (마스킹 대상)
+import re as _re
+import hashlib as _hashlib
+
+_SENSITIVE_PATTERNS = [
+    _re.compile(r'(?:api[_-]?key|token|secret|password|passwd|credential|auth)[=:\s]+\S+', _re.IGNORECASE),
+    _re.compile(r'(?:sk|pk|ghp|gho|glpat|xox[bpas])-[A-Za-z0-9_\-]{10,}'),
+    _re.compile(r'eyJ[A-Za-z0-9_\-]{20,}\.eyJ[A-Za-z0-9_\-]{20,}'),  # JWT
+    _re.compile(r'https?://[^@\s]*:[^@\s]*@'),  # URL with credentials
+]
+
+
+def _sanitize_prompt(text: str, max_length: int = 80) -> str:
+    """프롬프트 텍스트에서 민감 정보를 마스킹하고 길이를 제한"""
+    sanitized = text
+    for pattern in _SENSITIVE_PATTERNS:
+        sanitized = pattern.sub("[REDACTED]", sanitized)
+    if len(sanitized) > max_length:
+        sanitized = sanitized[:max_length] + "..."
+    return sanitized
+
+
+def _hash_prompt(text: str) -> str:
+    """프롬프트를 해시로 변환 (baseline 저장용)"""
+    return _hashlib.sha256(text.lower().strip().encode()).hexdigest()[:12]
+
+
+def _safe_write(path: Path, content: str, mode: int = 0o600) -> None:
+    """안전한 파일 쓰기 (제한된 권한으로 생성)"""
+    import os
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, mode)
+    try:
+        os.write(fd, content.encode("utf-8"))
+    finally:
+        os.close(fd)
+
+
+def _validate_output_path(output_path: str) -> Path:
+    """출력 경로가 reports/ 디렉토리 내에 있는지 검증"""
+    resolved = Path(output_path).resolve()
+    allowed = REPORTS_PATH.resolve()
+    if not str(resolved).startswith(str(allowed)):
+        print(f"[보안] 출력 경로는 reports/ 디렉토리 내에만 허용됩니다: {allowed}", file=sys.stderr)
+        print(f"[보안] 요청된 경로: {resolved}", file=sys.stderr)
+        sys.exit(1)
+    return resolved
+
 
 @dataclass
 class PromptEntry:
@@ -81,7 +129,7 @@ class CCInsightsAnalyzer:
                         count += 1
                         if limit and count >= limit:
                             break
-                except (json.JSONDecodeError, KeyError):
+                except Exception:
                     continue
 
         return count
@@ -99,7 +147,7 @@ class CCInsightsAnalyzer:
                     entry = PromptEntry.from_json(data)
                     self.entries.append(entry)
                     count += 1
-                except (json.JSONDecodeError, KeyError):
+                except Exception:
                     continue
 
         return count
@@ -113,10 +161,9 @@ class CCInsightsAnalyzer:
         return False
 
     def save_baseline(self, data: dict) -> None:
-        """baseline 데이터 저장"""
-        PLUGIN_DATA_PATH.mkdir(parents=True, exist_ok=True)
-        with open(BASELINE_PATH, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2, default=str)
+        """baseline 데이터 저장 (민감 정보 제외, 제한된 파일 권한)"""
+        content = json.dumps(data, ensure_ascii=False, indent=2, default=str)
+        _safe_write(BASELINE_PATH, content)
 
     def analyze_vague_prompts(self) -> List[dict]:
         """모호한 프롬프트 분석"""
@@ -579,22 +626,34 @@ class CCInsightsAnalyzer:
         return " ".join(recommendations) if recommendations else "균형 잡힌 작업 패턴입니다."
 
     def generate_baseline(self) -> dict:
-        """전체 히스토리 기반 baseline 생성"""
+        """전체 히스토리 기반 baseline 생성 (민감 정보 비저장)"""
         total = len(self.entries)
         if total == 0:
             return {}
 
-        # 프롬프트 빈도
+        # 프롬프트 빈도 (해시만 저장, 원문 비저장)
         prompt_freq = Counter(e.display.lower().strip() for e in self.entries)
+        # 슬래시 커맨드만 원문 유지 (민감하지 않음), 나머지는 카테고리+카운트만
+        safe_top_prompts = []
+        for prompt, count in prompt_freq.most_common(20):
+            if prompt.startswith("/"):
+                safe_top_prompts.append([prompt, count])
+            else:
+                safe_top_prompts.append([_hash_prompt(prompt), count])
 
-        # 프로젝트 빈도
+        # 프로젝트 빈도 (프로젝트명만, 경로 비저장)
         project_freq = Counter(
             Path(e.project).name if e.project else "unknown"
             for e in self.entries
         )
 
-        # 자동화 후보
+        # 자동화 후보 (샘플 텍스트 마스킹)
         automation = self.analyze_automation_candidates()
+        for candidate in automation:
+            if "samples" in candidate:
+                candidate["samples"] = [
+                    _sanitize_prompt(s, max_length=50) for s in candidate["samples"]
+                ]
 
         # 시간 패턴
         hourly = Counter(e.timestamp.hour for e in self.entries)
@@ -606,7 +665,7 @@ class CCInsightsAnalyzer:
                 "start": min(e.timestamp for e in self.entries).isoformat(),
                 "end": max(e.timestamp for e in self.entries).isoformat()
             },
-            "top_prompts": prompt_freq.most_common(20),
+            "top_prompts": safe_top_prompts,
             "top_projects": project_freq.most_common(10),
             "automation_candidates": automation,
             "hourly_avg": {h: c / max(1, total) for h, c in hourly.items()},
@@ -1146,7 +1205,7 @@ class CCInsightsAnalyzer:
 |----------|------|--------|--------|
 """
         for item in quality.get('low_quality', [])[:5]:
-            prompt_short = item['prompt'][:30] + '...' if len(item['prompt']) > 30 else item['prompt']
+            prompt_short = _sanitize_prompt(item['prompt'], max_length=30)
             issues = ', '.join(item['issues']) if item['issues'] else '-'
             report += f"| `{prompt_short}` | {item['score']}/10 | {issues} | {item['improvement'][:40]}... |\n"
 
@@ -1162,7 +1221,7 @@ class CCInsightsAnalyzer:
 - **샘플**:
 """
                 for sample in candidate['samples'][:3]:
-                    sample_short = sample[:50] + '...' if len(sample) > 50 else sample
+                    sample_short = _sanitize_prompt(sample, max_length=50)
                     report += f"  - `{sample_short}`\n"
                 report += "\n"
         else:
@@ -1523,10 +1582,8 @@ def main():
             report = analyzer.generate_report(format=args.format)
 
             if args.output:
-                output_path = Path(args.output)
-                output_path.parent.mkdir(parents=True, exist_ok=True)
-                with open(output_path, "w", encoding="utf-8") as f:
-                    f.write(report)
+                output_path = _validate_output_path(args.output)
+                _safe_write(output_path, report)
                 print(f"[cc-insights] 리포트 저장: {output_path}")
             else:
                 print(report)

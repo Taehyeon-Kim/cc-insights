@@ -5,9 +5,12 @@ cc-insights Skill 자동 생성기
 """
 
 import sys
+import os
 import json
 from pathlib import Path
 from datetime import datetime
+
+GENERATED_SKILLS_PATH = Path(__file__).parent.parent / "generated_skills"
 
 # Skill 템플릿 (한국어)
 SKILL_TEMPLATES = {
@@ -237,10 +240,20 @@ def generate_skill(skill_name: str, output_dir: Path = None) -> str:
 """
 
     if output_dir:
-        output_path = output_dir / f"{skill_name}.md"
+        # 출력 경로를 generated_skills/ 내부로 제한
+        safe_dir = GENERATED_SKILLS_PATH if output_dir is None else output_dir
+        resolved = Path(safe_dir).resolve()
+        allowed = GENERATED_SKILLS_PATH.resolve()
+        if not str(resolved).startswith(str(allowed)):
+            return f"[보안] 출력 경로는 generated_skills/ 디렉토리 내에만 허용됩니다: {allowed}"
+
+        output_path = resolved / f"{skill_name}.md"
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(output_path, "w", encoding="utf-8") as f:
-            f.write(template)
+        fd = os.open(str(output_path), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
+        try:
+            os.write(fd, template.encode("utf-8"))
+        finally:
+            os.close(fd)
         return f"[cc-insights] Skill 생성 완료: {output_path}"
 
     return template
@@ -273,7 +286,7 @@ def main():
         print(list_available_skills())
         return
 
-    output_dir = Path(sys.argv[2]) if len(sys.argv) > 2 else None
+    output_dir = Path(sys.argv[2]) if len(sys.argv) > 2 else GENERATED_SKILLS_PATH
 
     result = generate_skill(skill_name, output_dir)
     print(result)

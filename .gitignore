@@ -1,0 +1,10 @@
+# Personal data (generated per user via /cc-insights:setup)
+data/baseline.json
+
+# Generated reports
+reports/daily/
+reports/weekly/
+
+# OS
+.DS_Store
+__pycache__/

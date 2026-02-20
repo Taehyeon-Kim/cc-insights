@@ -1,0 +1,17 @@
+{
+  "name": "cc-insights",
+  "version": "1.0.0",
+  "description": "Claude Code 사용 패턴 분석 및 개인화된 피드백 제공 (한국어 특화)",
+  "author": {
+    "name": "Tony"
+  },
+  "repository": "https://github.com/Taehyeon-Kim/cc-insights",
+  "license": "MIT",
+  "keywords": [
+    "analytics",
+    "productivity",
+    "korean",
+    "prompt-quality",
+    "insights"
+  ]
+}

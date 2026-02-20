@@ -1,0 +1,21 @@
+{
+  "name": "cc-insights-local",
+  "owner": {
+    "name": "Tony",
+    "email": ""
+  },
+  "metadata": {
+    "description": "cc-insights 로컬 marketplace",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "cc-insights",
+      "source": "./",
+      "description": "Claude Code 사용 패턴 분석 및 개인화된 피드백 제공 (한국어 특화)",
+      "category": "analytics",
+      "tags": ["analytics", "productivity", "korean", "insights"]
+    }
+  ],
+  "version": "1.0.0"
+}

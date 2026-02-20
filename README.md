@@ -9,11 +9,36 @@ Claude Code 사용 패턴을 분석하여 **개인화된 인사이트와 구체�
 - **baseline 비교** - 전체 히스토리 대비 최근 변화 추적
 - **skill 자동 생성** - 반복 패턴 감지 시 skill 코드 제안
 - **트렌드 분석** - 주간/월간 성장 추적
+- **보안 설계** - 민감 정보 마스킹, 경로 제한, 외부 의존성 제로
+
+## 구조
+
+```mermaid
+graph LR
+    A["~/.claude/history.jsonl"] -->|read| B["analyzer.py"]
+    B --> C["patterns.py"]
+    B --> D["baseline.json"]
+    B --> E["reports/"]
+    C -->|감지| F["모호한 프롬프트"]
+    C -->|감지| G["반복 패턴"]
+    C -->|계산| H["품질 점수"]
+    G --> I["skill_generator.py"]
+    I --> J["generated_skills/"]
+```
 
 ## 설치
 
+### GitHub에서 설치
+
 ```bash
-claude plugin install ~/path/to/cc-insights
+# 1. 클론
+git clone https://github.com/Taehyeon-Kim/cc-insights.git ~/.cc-insights
+
+# 2. 커맨드 심링크 등록
+ln -s ~/.cc-insights/commands/cc-insights:*.md ~/.claude/commands/
+
+# 3. Claude Code에서 초기 설정
+/cc-insights:setup
 ```
 
 ## 빠른 시작
@@ -27,24 +52,21 @@ claude plugin install ~/path/to/cc-insights
 전체 히스토리를 분석하여 개인화된 프로필과 baseline을 생성합니다.
 
 **출력 예시:**
-```
-╔══════════════════════════════════════════════════════════════════════════╗
-║                    🔍 cc-insights 온보딩 분석 완료                         ║
-╠══════════════════════════════════════════════════════════════════════════╣
-║  📊 분석 기간: 2025-11-11 ~ 2026-01-14 (65일)
-║  📝 총 프롬프트: 7,443개
-║  📈 하루 평균: 114.5개
-║  ⭐ 종합 등급: A
-╚══════════════════════════════════════════════════════════════════════════╝
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📋 당신의 개발 프로필
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  • 작업 스타일: 🌙 나이트 아울 (저녁 집중형)
-  • 세션 스타일: 🔥 딥다이브 (긴 세션 선호)
-  • 프로젝트 스타일: 🌐 멀티태스커 (다중 프로젝트)
-  • 프롬프트 스타일: ✍️ 적정파 (적절한 길이)
-...
+```
+cc-insights 온보딩 분석 완료
+-----------------------------------------
+  분석 기간: 2025-11-11 ~ 2026-01-14 (65일)
+  총 프롬프트: 7,443개
+  하루 평균: 114.5개
+  종합 등급: A
+-----------------------------------------
+
+당신의 개발 프로필
+  - 작업 스타일: 나이트 아울 (저녁 집중형)
+  - 세션 스타일: 딥다이브 (긴 세션 선호)
+  - 프로젝트 스타일: 멀티태스커 (다중 프로젝트)
+  - 프롬프트 스타일: 적정파 (적절한 길이)
 ```
 
 ### 2. 일상적인 사용
@@ -55,6 +77,8 @@ claude plugin install ~/path/to/cc-insights
 /cc-insights:trends           # 주간 트렌드
 /cc-insights:skills           # skill 추천 목록
 /cc-insights:analyze          # 상세 분석
+/cc-insights:projects         # 프로젝트별 분석
+/cc-insights:stats            # 전체 사용 통계
 ```
 
 ## 명령어 상세
@@ -83,16 +107,15 @@ claude plugin install ~/path/to/cc-insights
 ```
 
 **출력 예시:**
-```
-┌─────────────────────────────────────────────────────────────┐
-│  📊 cc-insights 빠른 요약 (최근 7일)                         │
-├─────────────────────────────────────────────────────────────┤
-│  오늘: 45개 (📈 평균 대비 +32%)
-│  총 프롬프트: 312개 | 품질: 8.2/10
-│  모호한 프롬프트: 28개 (9.0%)
-└─────────────────────────────────────────────────────────────┘
 
-💡 추천: /commit skill 생성 (23회 반복)
+```
+cc-insights 빠른 요약 (최근 7일)
+-----------------------------------------
+  오늘: 45개 (평균 대비 +32%)
+  총 프롬프트: 312개 | 품질: 8.2/10
+  모호한 프롬프트: 28개 (9.0%)
+-----------------------------------------
+  추천: /commit skill 생성 (23회 반복)
 ```
 
 ---
@@ -107,20 +130,10 @@ claude plugin install ~/path/to/cc-insights
 - 프롬프트 스타일 (짧은 프롬프트 → 구체화 권장)
 - 비효율 패턴 (/clear 과다 → claude --continue 권장)
 
-**출력 예시:**
-```
-╔══════════════════════════════════════════════════════════════╗
-║  💡 개인화된 팁                                               ║
-╚══════════════════════════════════════════════════════════════╝
-
-  🔴 [세션 관리]
-     긴 세션 중간에 `/compact`로 컨텍스트 압축을 권장합니다
-     └─ 이유: 토큰 절약 및 응답 품질 유지
-
-  🟡 [작업 패턴]
-     야간 작업 후에는 `/handoff`로 컨텍스트 정리를 권장합니다
-     └─ 이유: 다음 날 작업 재개 시 시간 절약
-```
+**우선순위:**
+- `HIGH` - 즉시 적용 권장
+- `MEDIUM` - 점진적 개선
+- `LOW` - 선택적 적용
 
 ---
 
@@ -131,22 +144,6 @@ claude plugin install ~/path/to/cc-insights
 ```bash
 /cc-insights:trends              # 최근 4주
 /cc-insights:trends --weeks 8    # 최근 8주
-```
-
-**출력 예시:**
-```
-╔══════════════════════════════════════════════════════════════╗
-║  📈 최근 4주 트렌드                                           ║
-╚══════════════════════════════════════════════════════════════╝
-
-  품질 점수: 📈 상승
-  모호한 프롬프트: 📈 개선
-  사용량: ➡️ 유지
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  이번 주 (01/08 ~ 01/14)
-    프롬프트: [████████████░░░░░░░░] 120개
-    품질: 8.5/10 | 모호: 8.3%
 ```
 
 ---
@@ -194,14 +191,31 @@ claude plugin install ~/path/to/cc-insights
 
 ## 분석 기능 상세
 
+### 분석 흐름
+
+```mermaid
+flowchart TD
+    A["history.jsonl"] --> B["load_history()"]
+    B --> C{"분석 유형"}
+    C -->|품질| D["calculate_prompt_quality_score()"]
+    C -->|패턴| E["detect_vague_patterns()"]
+    C -->|반복| F["detect_automation_candidates()"]
+    C -->|비효율| G["detect_inefficiency_patterns()"]
+    D --> H["점수 0-10"]
+    E --> I["개선 제안"]
+    F --> J["Skill 추천"]
+    G --> K["워크플로우 팁"]
+    H & I & J & K --> L["리포트 생성"]
+```
+
 ### 개발 프로필
 
 | 카테고리 | 유형 |
 |----------|------|
-| 작업 스타일 | 🌅 얼리버드 / 🌙 나이트아울 / 🦉 심야형 / ☀️ 균형형 |
-| 세션 스타일 | 🔥 딥다이브 / ⚡ 스프린터 / 🎯 밸런서 |
-| 프로젝트 스타일 | 🎯 집중형 / 📁 포커스형 / 🌐 멀티태스커 |
-| 프롬프트 스타일 | 📝 상세파 / 💨 간결파 / ✍️ 적정파 |
+| 작업 스타일 | 얼리버드 / 나이트아울 / 심야형 / 균형형 |
+| 세션 스타일 | 딥다이브 / 스프린터 / 밸런서 |
+| 프로젝트 스타일 | 집중형 / 포커스형 / 멀티태스커 |
+| 프롬프트 스타일 | 상세파 / 간결파 / 적정파 |
 
 ### 품질 점수 계산
 
@@ -223,60 +237,77 @@ claude plugin install ~/path/to/cc-insights
 | "이거 확인" | 지시대명사 | 무엇을 가리키는지 명시 |
 | "확인해줘" | 대상 미지정 | "pm2 logs에서 ERROR 확인" |
 | "커밋" | 단일 키워드 | 옵션이나 범위 명시 |
-| "로그" | 대상 불명확 | "pm2 logs laytonalpha --lines 100" |
+| "로그" | 대상 불명확 | "pm2 logs --lines 100" |
+
+## 보안
+
+```mermaid
+flowchart LR
+    subgraph "읽기 (Read-only)"
+        A["~/.claude/history.jsonl"]
+    end
+    subgraph "쓰기 (제한됨)"
+        B["data/baseline.json\n(해시, 0600)"]
+        C["reports/\n(경로 검증, 0600)"]
+        D["generated_skills/\n(경로 검증)"]
+    end
+    A --> B
+    A --> C
+    A --> D
+```
+
+- **민감 정보 마스킹**: API키, JWT, URL 크레덴셜 자동 `[REDACTED]` 처리
+- **프롬프트 비저장**: baseline에 원문 대신 `sha256[:12]` 해시 저장
+- **경로 제한**: `--output`은 `reports/` 내부만 허용, path traversal 차단
+- **파일 권한**: 민감 파일 `0600` (소유자만 읽기/쓰기)
+- **외부 의존성 제로**: Python 표준 라이브러리만 사용
+- **네트워크 통신 없음**: 모든 데이터는 로컬에서만 처리
 
 ## 파일 구조
 
 ```
 cc-insights/
 ├── .claude-plugin/
-│   └── plugin.json
+│   ├── plugin.json
+│   └── marketplace.json
 ├── commands/
-│   ├── cc-insights:setup.md      # 초기 설정
-│   ├── cc-insights:analyze.md    # 상세 분석
-│   ├── cc-insights:summary.md    # 빠른 요약
-│   ├── cc-insights:tips.md       # 개인화된 팁
-│   ├── cc-insights:trends.md     # 트렌드 분석
-│   └── cc-insights:skills.md     # Skill 관리
+│   ├── cc-insights:setup.md        # 초기 설정
+│   ├── cc-insights:analyze.md      # 상세 분석
+│   ├── cc-insights:summary.md      # 빠른 요약
+│   ├── cc-insights:tips.md         # 개인화된 팁
+│   ├── cc-insights:trends.md       # 트렌드 분석
+│   ├── cc-insights:skills.md       # Skill 관리
+│   ├── cc-insights:projects.md     # 프로젝트별 분석
+│   └── cc-insights:stats.md        # 전체 통계
 ├── scripts/
-│   ├── analyzer.py               # 메인 분석 엔진
-│   ├── patterns.py               # 패턴 감지 모듈
-│   └── skill_generator.py        # Skill 코드 생성
+│   ├── analyzer.py                 # 메인 분석 엔진
+│   ├── patterns.py                 # 패턴 감지 모듈
+│   └── skill_generator.py          # Skill 코드 생성
 ├── data/
-│   └── baseline.json             # 전체 히스토리 baseline
-└── reports/                      # 저장된 리포트
+│   └── baseline.json               # 전체 히스토리 baseline (gitignored)
+├── reports/                        # 저장된 리포트 (gitignored)
+└── generated_skills/               # 생성된 Skill 파일 (gitignored)
 ```
 
 ## 추천 사용 패턴
 
-### 매일
-```bash
-/cc-insights:summary    # 오늘 현황 확인
-```
-
-### 매주
-```bash
-/cc-insights:trends     # 주간 성장 확인
-/cc-insights:tips       # 개선 팁 확인
-```
-
-### 필요 시
-```bash
-/cc-insights:skills     # 자동화 후보 확인
-/cc-insights:analyze report  # 상세 리포트 저장
-```
-
-### baseline 갱신
-```bash
-/cc-insights:setup      # 전체 히스토리 재분석
+```mermaid
+graph TD
+    A["매일"] -->|"/cc-insights:summary"| B["현황 확인"]
+    C["매주"] -->|"/cc-insights:trends"| D["성장 추적"]
+    C -->|"/cc-insights:tips"| E["개선 팁"]
+    F["필요 시"] -->|"/cc-insights:skills"| G["자동화 후보"]
+    F -->|"/cc-insights:analyze report"| H["상세 리포트"]
+    I["월간"] -->|"/cc-insights:setup"| J["baseline 갱신"]
+    I -->|"/cc-insights:stats"| K["전체 통계"]
 ```
 
 ## 기술 스택
 
-- **언어**: Python 3
+- **언어**: Python 3 (표준 라이브러리만 사용)
 - **분석**: 정규식 기반 패턴 매칭
 - **저장소**: JSON (baseline, 리포트)
-- **출력**: CLI (박스 형식), Markdown (파일)
+- **출력**: CLI, Markdown
 
 ## 라이선스
 
